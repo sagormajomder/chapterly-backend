@@ -1,0 +1,21 @@
+{
+  "name": "the-book-heaven-backend",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "Sagor Majomder",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file .env server.js",
+    "devServer": "nodemon --env-file .env server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "mongodb": "^7.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
