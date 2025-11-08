@@ -28,6 +28,22 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
+
+    // DB
+    const chapterlyDB = client.db('chapterlyDB');
+    const booksCollection = chapterlyDB.collection('books');
+
+    // Get all books
+    app.get('/all-books', async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.email = email;
+      }
+
+      const books = await booksCollection.find(query).toArray();
+      res.status(200).send(books);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
