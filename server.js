@@ -44,6 +44,25 @@ async function run() {
       const books = await booksCollection.find(query).toArray();
       res.status(200).send(books);
     });
+
+    // get latest books
+    app.get('/latest-books', async (req, res) => {
+      const books = await booksCollection
+        .find()
+        .toArray()
+        .sort({ created_at: 'desc' })
+        .limit(6);
+    });
+
+    // post books
+    app.post('/add-book', async (req, res) => {
+      const newBook = req.body;
+      console.log(newBook);
+
+      const book = await booksCollection.insertOne(newBook);
+
+      res.status(201).send(book);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
