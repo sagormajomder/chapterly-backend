@@ -49,9 +49,11 @@ async function run() {
     app.get('/latest-books', async (req, res) => {
       const books = await booksCollection
         .find()
-        .toArray()
-        .sort({ created_at: 'desc' })
-        .limit(6);
+        .sort({ _id: 'desc' })
+        .limit(6)
+        .toArray();
+
+      res.status(200).send(books);
     });
 
     // post books
