@@ -1,6 +1,6 @@
 import cors from 'cors';
 import express from 'express';
-import { MongoClient, ServerApiVersion } from 'mongodb';
+import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 
 const port = process.env.PORT || 5000;
 const app = express();
@@ -33,19 +33,22 @@ async function run() {
     const chapterlyDB = client.db('chapterlyDB');
     const booksCollection = chapterlyDB.collection('books');
 
-    // Get all books
+    //! Get all books
     app.get('/all-books', async (req, res) => {
       const email = req.query.email;
+      // console.log(email);
       const query = {};
       if (email) {
-        query.email = email;
+        query.userEmail = email;
       }
+
+      // console.log(query);
 
       const books = await booksCollection.find(query).toArray();
       res.status(200).send(books);
     });
 
-    // get latest books
+    //! get latest books
     app.get('/latest-books', async (req, res) => {
       const books = await booksCollection
         .find()
@@ -56,7 +59,14 @@ async function run() {
       res.status(200).send(books);
     });
 
-    // post books
+    //! Get single book
+    app.get('/book-details/:id', async (req, res) => {
+      const { id } = req.params;
+      const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+      res.status(200).send(book);
+    });
+
+    //! post books
     app.post('/add-book', async (req, res) => {
       const newBook = req.body;
       console.log(newBook);
