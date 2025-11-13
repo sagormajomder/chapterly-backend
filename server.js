@@ -90,10 +90,10 @@ async function run() {
 
       try {
         const books = await booksCollection.aggregate(pipeline).toArray();
-        return res.status(200).send(books);
+        res.status(200).send(books);
       } catch (err) {
         console.error('Aggregation error', err);
-        return res.status(500).send({ message: 'Aggregation failed' });
+        res.status(500).send({ message: 'Aggregation failed' });
       }
     });
 
@@ -186,8 +186,26 @@ async function run() {
     });
 
     // ! Add comment
+    app.post('/add-comment', verifyFireBaseToken, async (req, res) => {
+      const newComment = req.body;
+      console.log(newComment);
 
-    app.post('/add-comment', (req, res) => {});
+      const comment = await commentsCollection.insertOne(newComment);
+      console.log(comment);
+
+      res.status(201).send(comment);
+    });
+
+    // ! get comments
+    app.get('/comments/:id', verifyFireBaseToken, async (req, res) => {
+      const { id } = req.params;
+      const comments = await commentsCollection
+        .find({ bookID: id })
+        .sort({ created_at: 'desc' })
+        .toArray();
+
+      res.status(200).send(comments);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
