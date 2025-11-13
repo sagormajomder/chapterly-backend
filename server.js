@@ -195,10 +195,10 @@ async function run() {
     // ! Add comment
     app.post('/add-comment', verifyFireBaseToken, async (req, res) => {
       const newComment = req.body;
-      console.log(newComment);
+      // console.log(newComment);
 
       const comment = await commentsCollection.insertOne(newComment);
-      console.log(comment);
+      // console.log(comment);
 
       res.status(201).send(comment);
     });
