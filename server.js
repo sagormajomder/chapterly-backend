@@ -74,6 +74,7 @@ async function run() {
     // DB
     const chapterlyDB = client.db('chapterlyDB');
     const booksCollection = chapterlyDB.collection('books');
+    const commentsCollection = chapterlyDB.collection('comments');
 
     //! Get all books
     app.get('/all-books', async (req, res) => {
@@ -81,11 +82,26 @@ async function run() {
       res.status(200).send(books);
     });
 
+    //! all books sorted by rating
+    app.get('/sort', async (req, res) => {
+      const sortBy = req.query.sortby;
+
+      const pipeline = [{ $sort: { rating: sortBy === 'low' ? 1 : -1 } }];
+
+      try {
+        const books = await booksCollection.aggregate(pipeline).toArray();
+        return res.status(200).send(books);
+      } catch (err) {
+        console.error('Aggregation error', err);
+        return res.status(500).send({ message: 'Aggregation failed' });
+      }
+    });
+
     //! get latest books
     app.get('/latest-books', async (req, res) => {
       const books = await booksCollection
         .find()
-        .sort({ _id: 'desc' })
+        .sort({ created_at: 'desc' })
         .limit(6)
         .toArray();
 
@@ -111,7 +127,8 @@ async function run() {
         const books = await booksCollection
           .find({ userEmail: email })
           .toArray();
-        res.status(200).send(books);
+
+        return res.status(200).send(books);
       }
 
       res
@@ -167,6 +184,10 @@ async function run() {
 
       res.status(200).send(result);
     });
+
+    // ! Add comment
+
+    app.post('/add-comment', (req, res) => {});
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
