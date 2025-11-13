@@ -1,6 +1,12 @@
 import cors from 'cors';
 import express from 'express';
+import admin from 'firebase-admin';
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
+import serviceAccount from './chapterly-sm-firebase-admin-key.json' with { type: 'json' };
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 const port = process.env.PORT || 5000;
 const app = express();
@@ -8,6 +14,37 @@ const app = express();
 // MiddleWare
 app.use(cors());
 app.use(express.json());
+
+async function verifyFireBaseToken(req, res, next) {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({
+      message: 'unauthorized access',
+    });
+  }
+  const token = authorization.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).send({
+      message: 'unauthorized access. Token not found!',
+    });
+  }
+
+  try {
+    const tokenInfo = await admin.auth().verifyIdToken(token);
+
+    console.log(tokenInfo);
+    req.token_email = tokenInfo.email;
+
+    next();
+  } catch (error) {
+    console.log('Invalid Token');
+    console.log(error);
+    res.status(401).send({
+      message: 'unauthorized access.',
+    });
+  }
+}
 
 // Root Server Route
 app.get('/', (req, res) => {
@@ -35,16 +72,8 @@ async function run() {
 
     //! Get all books
     app.get('/all-books', async (req, res) => {
-      const email = req.query.email;
-      // console.log(email);
-      const query = {};
-      if (email) {
-        query.userEmail = email;
-      }
 
-      // console.log(query);
-
-      const books = await booksCollection.find(query).toArray();
+      const books = await booksCollection.find().toArray();
       res.status(200).send(books);
     });
 
@@ -60,21 +89,44 @@ async function run() {
     });
 
     //! Get single book
-    app.get('/book-details/:id', async (req, res) => {
+    app.get('/book-details/:id', verifyFireBaseToken, async (req, res) => {
       const { id } = req.params;
       const book = await booksCollection.findOne({ _id: new ObjectId(id) });
       res.status(200).send(book);
     });
 
+    //! Get specific user added books
+    app.get('/my-books', verifyFireBaseToken, async (req, res) => {
+      const email = req.query.email;
+
+      if (email) {
+
+        if (email !== req.token_email) {
+          return res.status(403).send({ message: 'forbidden access' });
+        }
+
+
+         const books = await booksCollection.find({ userEmail: email }).toArray();
+        res.status(200).send(books);
+      }
+
+      res.status(404).send({message: "no user found to show his/her added books"})
+      
+      
+    });
+
     //! post books
-    app.post('/add-book', async (req, res) => {
+    app.post('/add-book', verifyFireBaseToken, async (req, res) => {
       const newBook = req.body;
-      console.log(newBook);
+      // console.log(req.headers);
+      // console.log(newBook);
 
       const book = await booksCollection.insertOne(newBook);
 
       res.status(201).send(book);
     });
+
+    // !update book
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
