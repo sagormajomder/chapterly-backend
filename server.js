@@ -142,6 +142,9 @@ async function run() {
       // console.log(req.headers);
       // console.log(newBook);
 
+      if (newBook.rating !== undefined)
+        newBook.rating = Number(newBook.rating) || 0;
+
       const book = await booksCollection.insertOne(newBook);
 
       res.status(201).send(book);
@@ -157,6 +160,10 @@ async function run() {
       const book = await booksCollection.findOne(query);
       if (book.userEmail !== req.token_email) {
         return res.status(403).send({ message: 'forbidden access' });
+      }
+
+      if (updatedBook.rating !== undefined) {
+        updatedBook.rating = Number(updatedBook.rating) || 0;
       }
 
       const update = {
