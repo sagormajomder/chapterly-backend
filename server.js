@@ -2,7 +2,12 @@ import cors from 'cors';
 import express from 'express';
 import admin from 'firebase-admin';
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
-import serviceAccount from './chapterly-sm-firebase-admin-key.json' with { type: 'json' };
+
+const decoded = Buffer.from(
+  process.env.FIREBASE_SERVICE_KEY,
+  'base64'
+).toString('utf8');
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -72,7 +77,6 @@ async function run() {
 
     //! Get all books
     app.get('/all-books', async (req, res) => {
-
       const books = await booksCollection.find().toArray();
       res.status(200).send(books);
     });
@@ -100,19 +104,19 @@ async function run() {
       const email = req.query.email;
 
       if (email) {
-
         if (email !== req.token_email) {
           return res.status(403).send({ message: 'forbidden access' });
         }
 
-
-         const books = await booksCollection.find({ userEmail: email }).toArray();
+        const books = await booksCollection
+          .find({ userEmail: email })
+          .toArray();
         res.status(200).send(books);
       }
 
-      res.status(404).send({message: "no user found to show his/her added books"})
-      
-      
+      res
+        .status(404)
+        .send({ message: 'no user found to show his/her added books' });
     });
 
     //! post books
@@ -127,44 +131,42 @@ async function run() {
     });
 
     // !update book
-    app.patch("/update-book/:id", verifyFireBaseToken, async (req, res)=>{
-      const {id} = req.params;
+    app.patch('/update-book/:id', verifyFireBaseToken, async (req, res) => {
+      const { id } = req.params;
       const updatedBook = req.body;
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
 
       // check if the user is added the book
       const book = await booksCollection.findOne(query);
-      if(book.userEmail !== req.token_email){
-         return res.status(403).send({ message: 'forbidden access' });
+      if (book.userEmail !== req.token_email) {
+        return res.status(403).send({ message: 'forbidden access' });
       }
 
       const update = {
-        $set: updatedBook
-      }
+        $set: updatedBook,
+      };
 
-      const result = await booksCollection.updateOne(query,update);
+      const result = await booksCollection.updateOne(query, update);
 
-      res.status(200).send(result)
-    })
-
+      res.status(200).send(result);
+    });
 
     //! delete book
-    app.delete("/delete-book/:id", verifyFireBaseToken, async (req,res)=>{
-      const {id} = req.params;
+    app.delete('/delete-book/:id', verifyFireBaseToken, async (req, res) => {
+      const { id } = req.params;
 
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
 
       // check if the user is permitted
       const book = await booksCollection.findOne(query);
-      if(book.userEmail !== req.token_email){
-         return res.status(403).send({ message: 'forbidden access' });
+      if (book.userEmail !== req.token_email) {
+        return res.status(403).send({ message: 'forbidden access' });
       }
 
       const result = await booksCollection.deleteOne(query);
 
       res.status(200).send(result);
-      
-    })
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
