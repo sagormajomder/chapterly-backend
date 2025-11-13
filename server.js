@@ -33,7 +33,7 @@ async function verifyFireBaseToken(req, res, next) {
   try {
     const tokenInfo = await admin.auth().verifyIdToken(token);
 
-    console.log(tokenInfo);
+    // console.log(tokenInfo);
     req.token_email = tokenInfo.email;
 
     next();
@@ -127,6 +127,25 @@ async function run() {
     });
 
     // !update book
+    app.patch("/update-book/:id", verifyFireBaseToken, async (req, res)=>{
+      const {id} = req.params;
+      const updatedBook = req.body;
+      const query = {_id: new ObjectId(id)};
+
+      // check if the user is added the book
+      const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+      if(book.userEmail !== req.token_email){
+         return res.status(403).send({ message: 'forbidden access' });
+      }
+
+      const update = {
+        $set: updatedBook
+      }
+
+      const result = await booksCollection.updateOne(query,update);
+
+      res.status(200).send(result)
+    })
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
