@@ -133,7 +133,7 @@ async function run() {
       const query = {_id: new ObjectId(id)};
 
       // check if the user is added the book
-      const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+      const book = await booksCollection.findOne(query);
       if(book.userEmail !== req.token_email){
          return res.status(403).send({ message: 'forbidden access' });
       }
@@ -145,6 +145,25 @@ async function run() {
       const result = await booksCollection.updateOne(query,update);
 
       res.status(200).send(result)
+    })
+
+
+    //! delete book
+    app.delete("/delete-book/:id", verifyFireBaseToken, async (req,res)=>{
+      const {id} = req.params;
+
+      const query = {_id: new ObjectId(id)};
+
+      // check if the user is permitted
+      const book = await booksCollection.findOne(query);
+      if(book.userEmail !== req.token_email){
+         return res.status(403).send({ message: 'forbidden access' });
+      }
+
+      const result = await booksCollection.deleteOne(query);
+
+      res.status(200).send(result);
+      
     })
   } finally {
     // Ensures that the client will close when you finish/error
