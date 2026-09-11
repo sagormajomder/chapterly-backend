@@ -20,7 +20,7 @@ Chapterly is a digital library platform that lets users explore, add, and manage
 
 ### Tools
 
-- nodemon(v3)
+- Vercel (deployment)
 
 ## Run it Locally
 

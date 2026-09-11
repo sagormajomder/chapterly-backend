@@ -220,6 +220,12 @@ async function run() {
 }
 run().catch(console.dir);
 
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
+// Vercel zero-config picks up this default export as the serverless handler.
+export default app;
+
+// Only bind a port for local development; Vercel manages the listener itself.
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Server is running at http://localhost:${port}`);
+  });
+}
