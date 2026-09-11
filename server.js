@@ -5,7 +5,7 @@ import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 
 const decoded = Buffer.from(
   process.env.FIREBASE_SERVICE_KEY,
-  'base64'
+  'base64',
 ).toString('utf8');
 const serviceAccount = JSON.parse(decoded);
 
@@ -17,7 +17,12 @@ const port = process.env.PORT || 5000;
 const app = express();
 
 // MiddleWare
-app.use(cors());
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'https://chapterly-sm.web.app'],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 async function verifyFireBaseToken(req, res, next) {
@@ -69,8 +74,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // await client.connect();
-
     // DB
     const chapterlyDB = client.db('chapterlyDB');
     const booksCollection = chapterlyDB.collection('books');
@@ -158,6 +161,7 @@ async function run() {
 
       // check if the user is added the book
       const book = await booksCollection.findOne(query);
+      if (!book) return res.status(404).send({ message: 'book not found' });
       if (book.userEmail !== req.token_email) {
         return res.status(403).send({ message: 'forbidden access' });
       }
@@ -183,6 +187,7 @@ async function run() {
 
       // check if the user is permitted
       const book = await booksCollection.findOne(query);
+      if (!book) return res.status(404).send({ message: 'book not found' });
       if (book.userEmail !== req.token_email) {
         return res.status(403).send({ message: 'forbidden access' });
       }
