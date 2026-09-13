@@ -1,33 +1,17 @@
 import cors from 'cors';
 import express from 'express';
-import admin from 'firebase-admin';
-import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
+import { closeDB } from './src/config/db.js';
+import {
+  errorHandler,
+  notFoundHandler,
+} from './src/middlewares/error.middleware.js';
+import bookRoutes from './src/routes/book.routes.js';
+import commentRoutes from './src/routes/comment.routes.js';
 
-// Safe Firebase Admin Initialization
-if (!admin.apps.length) {
-  if (process.env.FIREBASE_SERVICE_KEY) {
-    try {
-      const decoded = Buffer.from(
-        process.env.FIREBASE_SERVICE_KEY,
-        'base64',
-      ).toString('utf8');
-      const serviceAccount = JSON.parse(decoded);
-
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    } catch (err) {
-      console.error('Firebase Admin initialization error:', err);
-    }
-  } else {
-    console.warn('FIREBASE_SERVICE_KEY environment variable is missing.');
-  }
-}
-
-const port = process.env.PORT || 5000;
 const app = express();
+const port = process.env.PORT || 5000;
 
-// MiddleWare
+// Middlewares
 app.use(
   cors({
     origin: ['http://localhost:5173', 'https://chapterly-sm.web.app'],
@@ -36,248 +20,44 @@ app.use(
 );
 app.use(express.json());
 
-async function verifyFireBaseToken(req, res, next) {
-  const authorization = req.headers.authorization;
-  if (!authorization) {
-    return res.status(401).send({
-      message: 'unauthorized access',
-    });
-  }
-  const token = authorization.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).send({
-      message: 'unauthorized access. Token not found!',
-    });
-  }
-
-  try {
-    const tokenInfo = await admin.auth().verifyIdToken(token);
-    req.token_email = tokenInfo.email;
-    next();
-  } catch (error) {
-    console.error('Invalid Token:', error);
-    res.status(401).send({
-      message: 'unauthorized access.',
-    });
-  }
-}
-
-// DB CONFIG
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.qpprkks.mongodb.net/?appName=Cluster0`;
-
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-  maxPoolSize: 10,
-});
-
-const chapterlyDB = client.db('chapterlyDB');
-const booksCollection = chapterlyDB.collection('books');
-const commentsCollection = chapterlyDB.collection('comments');
-
-// Root Server Route
+// Root Route
 app.get('/', (req, res) => {
   res.status(200).send('<h1>Hello from Server</h1>');
 });
 
-//! Get all books
-app.get('/all-books', async (req, res, next) => {
-  try {
-    const books = await booksCollection.find().toArray();
-    res.status(200).send(books);
-  } catch (err) {
-    next(err);
-  }
+// Mount Routes
+app.use(bookRoutes);
+app.use(commentRoutes);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Crash / Unhandled Error Listeners
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  if (!process.env.VERCEL) process.exit(1);
 });
 
-//! all books sorted by rating
-app.get('/sort', async (req, res, next) => {
-  const sortBy = req.query.sortby;
-  const pipeline = [{ $sort: { rating: sortBy === 'low' ? 1 : -1 } }];
-
-  try {
-    const books = await booksCollection.aggregate(pipeline).toArray();
-    res.status(200).send(books);
-  } catch (err) {
-    console.error('Aggregation error', err);
-    res.status(500).send({ message: 'Aggregation failed' });
-  }
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception thrown:', err);
+  if (!process.env.VERCEL) process.exit(1);
 });
 
-//! get latest books
-app.get('/latest-books', async (req, res, next) => {
-  try {
-    const books = await booksCollection
-      .find()
-      .sort({ created_at: 'desc' })
-      .limit(6)
-      .toArray();
-
-    res.status(200).send(books);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! Get single book
-app.get('/book-details/:id', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ message: 'Invalid book ID format' });
-    }
-
-    const book = await booksCollection.findOne({ _id: new ObjectId(id) });
-    if (!book) {
-      return res.status(404).send({ message: 'book not found' });
-    }
-
-    res.status(200).send(book);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! Get specific user added books
-app.get('/my-books', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const email = req.query.email;
-
-    if (email) {
-      if (email !== req.token_email) {
-        return res.status(403).send({ message: 'forbidden access' });
-      }
-
-      const books = await booksCollection.find({ userEmail: email }).toArray();
-
-      return res.status(200).send(books);
-    }
-
-    res
-      .status(404)
-      .send({ message: 'no user found to show his/her added books' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! post books
-app.post('/add-book', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const newBook = req.body;
-
-    if (newBook.rating !== undefined) {
-      newBook.rating = Number(newBook.rating) || 0;
-    }
-
-    const book = await booksCollection.insertOne(newBook);
-    res.status(201).send(book);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! update book
-app.patch('/update-book/:id', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ message: 'Invalid book ID format' });
-    }
-
-    const updatedBook = req.body;
-    const query = { _id: new ObjectId(id) };
-
-    // check if the user is added the book
-    const book = await booksCollection.findOne(query);
-    if (!book) return res.status(404).send({ message: 'book not found' });
-    if (book.userEmail !== req.token_email) {
-      return res.status(403).send({ message: 'forbidden access' });
-    }
-
-    if (updatedBook.rating !== undefined) {
-      updatedBook.rating = Number(updatedBook.rating) || 0;
-    }
-
-    // Remove _id from updatedBook to prevent MongoDB immutable field update error
-    delete updatedBook._id;
-
-    const update = {
-      $set: updatedBook,
-    };
-
-    const result = await booksCollection.updateOne(query, update);
-    res.status(200).send(result);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! delete book
-app.delete('/delete-book/:id', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ message: 'Invalid book ID format' });
-    }
-
-    const query = { _id: new ObjectId(id) };
-
-    // check if the user is permitted
-    const book = await booksCollection.findOne(query);
-    if (!book) return res.status(404).send({ message: 'book not found' });
-    if (book.userEmail !== req.token_email) {
-      return res.status(403).send({ message: 'forbidden access' });
-    }
-
-    const result = await booksCollection.deleteOne(query);
-    res.status(200).send(result);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! Add comment
-app.post('/add-comment', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const newComment = req.body;
-    const comment = await commentsCollection.insertOne(newComment);
-    res.status(201).send(comment);
-  } catch (err) {
-    next(err);
-  }
-});
-
-//! get comments
-app.get('/comments/:id', verifyFireBaseToken, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const comments = await commentsCollection
-      .find({ bookID: id })
-      .sort({ created_at: 'desc' })
-      .toArray();
-
-    res.status(200).send(comments);
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.use((err, req, res, next) => {
-  console.error('Server Internal Error:', err);
-  res.status(500).send({ message: 'Internal Server Error' });
-});
-
-// Vercel zero-config picks up this default export as the serverless handler.
+// Vercel serverless export
 export default app;
 
-// Only bind a port for local development; Vercel manages the listener itself.
+// Local Development only: Bind port and handle terminal graceful shutdown (Ctrl + C)
 if (!process.env.VERCEL) {
   app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
   });
+
+  const handleLocalShutdown = async signal => {
+    console.log(`Received ${signal}. Shutting down local server cleanly...`);
+    await closeDB();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => handleLocalShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleLocalShutdown('SIGTERM'));
 }
